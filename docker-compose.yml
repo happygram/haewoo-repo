@@ -1,0 +1,55 @@
+services:
+  # Postgres (저비용 초기 검증용. 운영에서는 RDS/Docker 중 선택)
+  db:
+    image: postgres:17-alpine
+    container_name: haewoo-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: haewoo
+      POSTGRES_PASSWORD: uwKvNf9TsUwfQGLfpxWq
+      POSTGRES_DB: haewoo_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U haewoo -d haewoo_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - haewoo-network
+
+  # Backend (Go). ECR에서 이미지를 바로 내려받아 실행합니다.
+  backend:
+    image: "150390107266.dkr.ecr.ap-northeast-2.amazonaws.com/haewoo/backend:latest"
+    container_name: haewoo-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ./backend/.env
+    # 호스트 nginx: location ^~ /api/ → proxy_pass http://127.0.0.1:3001
+    ports:
+      - "3001:3001"
+    networks:
+      - haewoo-network
+
+  # Frontend (Node static + server.js). ECR에서 이미지를 바로 내려받아 실행합니다.
+  # 호스트 nginx: location / → proxy_pass http://127.0.0.1:3000
+  frontend:
+    image: "150390107266.dkr.ecr.ap-northeast-2.amazonaws.com/haewoo/frontend:latest"
+    container_name: haewoo-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    networks:
+      - haewoo-network
+
+networks:
+  haewoo-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
