@@ -139,7 +139,8 @@ export default function AdminDashboardSimple() {
       return;
     }
 
-    const applyCaption = uploadInch === "INCH32" ? caption : null;
+    const captionTrimmed = caption.trim();
+    const applyCaption = captionTrimmed || null;
 
     try {
       let idx = 0;
@@ -258,20 +259,22 @@ export default function AdminDashboardSimple() {
             <label className="field">
               <span>인치</span>
               <select value={uploadInch} onChange={(e) => setUploadInch(e.target.value)}>
-                <option value="INCH27">27인치 (텍스트 미표시)</option>
-                <option value="INCH32">32인치 (하단 텍스트 입력)</option>
+                <option value="INCH27">27인치 (키오스크에 텍스트 미표시)</option>
+                <option value="INCH32">32인치 (키오스크 하단에 텍스트 표시)</option>
               </select>
             </label>
-            {uploadInch === "INCH32" ? (
-              <label className="field">
-                <span>내용</span>
-                <input
-                  value={caption}
-                  onChange={(e) => setCaption(e.target.value)}
-                  placeholder="예: 000장례식장 특2호 / 안내 문구"
-                />
-              </label>
-            ) : null}
+            <label className="field field--top">
+              <span>내용</span>
+              <textarea
+                className="field-textarea"
+                rows={3}
+                lang="ko"
+                value={caption}
+                onChange={(e) => setCaption(e.target.value)}
+                placeholder="한글 입력 가능 (예: 000장례식장 특2호 / 안내 문구). 32인치에서만 키오스크에 표시됩니다."
+                autoComplete="off"
+              />
+            </label>
             <label className="field">
               <span>사진 파일</span>
               <input type="file" multiple accept="image/*" onChange={(e) => setFiles(Array.from(e.target.files || []))} />
@@ -288,7 +291,7 @@ export default function AdminDashboardSimple() {
             {activeImageUrl ? (
               <div style={{ marginBottom: 10 }}>
                 <div className="muted" style={{ fontSize: 12 }}>
-                  kiosk에서 현재 표시할 URL
+                  키오스크에서 현재 표시할 URL
                 </div>
                 <div className="code">{activeImageUrl}</div>
               </div>

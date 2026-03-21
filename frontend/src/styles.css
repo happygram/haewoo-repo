@@ -83,6 +83,14 @@ h2 {
   margin: 10px 0;
 }
 
+.field.field--top {
+  align-items: start;
+}
+
+.field.field--top > span {
+  padding-top: 10px;
+}
+
 .field span {
   color: var(--muted);
   font-size: 13px;
@@ -90,18 +98,26 @@ h2 {
 
 input,
 select,
+textarea,
 button {
   font: inherit;
 }
 
 input,
-select {
+select,
+textarea.field-textarea {
   width: 100%;
   padding: 10px 10px;
   border-radius: 10px;
   border: 1px solid var(--border);
   background: rgba(0, 0, 0, 0.2);
   color: var(--text);
+}
+
+textarea.field-textarea {
+  min-height: 4.5rem;
+  resize: vertical;
+  line-height: 1.45;
 }
 
 button {
@@ -145,35 +161,90 @@ button:disabled {
   overflow: hidden;
 }
 
+/* 27인치 LED: 텍스트 없음, 사진 영역을 넓게(여백 작게) */
+.kiosk--inch27 {
+  --kiosk-img-pad: clamp(6px, 1.4vmin, 18px);
+  --kiosk-caption-fs: clamp(1rem, 2vmin, 1.3rem);
+}
+
+/* 32인치 LED: 하단 문구 + 시인성, 이미지 여백·캡션 글자 크게 */
+.kiosk--inch32 {
+  --kiosk-img-pad: clamp(14px, 2.6vmin, 36px);
+  --kiosk-caption-pad-y: clamp(16px, 2.2vmin, 26px);
+  --kiosk-caption-pad-x: clamp(16px, 3.2vw, 40px);
+  --kiosk-caption-fs: clamp(1.15rem, 2.5vmin, 2.05rem);
+  --kiosk-caption-lh: 1.32;
+}
+
 .kiosk .frame {
   position: relative;
   width: 100%;
   height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+}
+
+/* 이미지: 화면을 덮어 잘리지 않게 전체가 보이도록(contain), 여백은 검정 레터박스 */
+.kiosk .kiosk-img-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--kiosk-img-pad, clamp(12px, 2.5vmin, 28px));
+  box-sizing: border-box;
 }
 
 .kiosk .bg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  object-position: center;
 }
 
 .kiosk .caption {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 14px 16px;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0));
+  flex-shrink: 0;
+  position: relative;
+  padding: var(--kiosk-caption-pad-y, 14px) var(--kiosk-caption-pad-x, clamp(14px, 3vw, 28px))
+    calc(14px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.92), rgba(0, 0, 0, 0.45));
+}
+
+.kiosk--inch32 .caption {
+  padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
 }
 
 .kiosk .caption-inner {
-  font-size: 22px;
+  font-size: var(--kiosk-caption-fs, 22px);
   font-weight: 600;
   white-space: pre-line;
-  line-height: 1.25;
+  word-break: keep-all;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.55);
+  line-height: var(--kiosk-caption-lh, 1.25);
   text-align: center;
+}
+
+/* 세로 해상도가 낮은 패널(예: 1366x768, 1280x720)에서는 캡션 영역을 줄여 이미지 확보 */
+@media (max-height: 780px) {
+  .kiosk--inch32 {
+    --kiosk-img-pad: clamp(10px, 1.8vmin, 20px);
+    --kiosk-caption-pad-y: 10px;
+    --kiosk-caption-pad-x: 16px;
+    --kiosk-caption-fs: clamp(1rem, 2.2vmin, 1.45rem);
+    --kiosk-caption-lh: 1.24;
+  }
+}
+
+/* 4K 등 큰 패널에서는 문구가 너무 작아지지 않게 상한을 확대 */
+@media (min-height: 1800px) {
+  .kiosk--inch32 {
+    --kiosk-caption-fs: clamp(1.4rem, 2.2vmin, 2.6rem);
+  }
 }
 
 .kiosk .corner-tag {

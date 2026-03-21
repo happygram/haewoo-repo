@@ -9,6 +9,7 @@ export default function KioskView() {
   const [error, setError] = useState("");
 
   const [showCaption, setShowCaption] = useState(false);
+  const [displaySize, setDisplaySize] = useState("INCH27");
   const [activeSlide, setActiveSlide] = useState(null);
 
   async function refresh() {
@@ -18,6 +19,8 @@ export default function KioskView() {
       try {
         const res = await getKioskRoomConfig({ roomId });
         setShowCaption(Boolean(res.ui?.showCaption));
+        const ds = res.ui?.displaySize;
+        setDisplaySize(ds === "INCH32" ? "INCH32" : "INCH27");
         setActiveSlide(res.activeSlide || null);
         setLoading(false);
         return;
@@ -39,13 +42,18 @@ export default function KioskView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 
+  const kioskClass =
+    displaySize === "INCH32" ? "kiosk kiosk--inch32" : "kiosk kiosk--inch27";
+
   return (
-    <div className="kiosk">
+    <div className={kioskClass}>
       {error ? <div className="kiosk-error">{error}</div> : null}
 
       {activeSlide?.imageUrl ? (
         <div className="frame">
-          <img className="bg" src={activeSlide.imageUrl} alt="" />
+          <div className="kiosk-img-wrap">
+            <img className="bg" src={activeSlide.imageUrl} alt="" />
+          </div>
           {showCaption ? (
             <div className="caption">
               <div className="caption-inner">{activeSlide.caption || ""}</div>

@@ -28,7 +28,7 @@ import (
 
 type Hall struct {
 	ID        string    `gorm:"primaryKey;size:64" json:"id"`
-	Name      string    `gorm:"not null" json:"name"`
+	Name      string    `gorm:"not null;type:text" json:"name"`
 	Rooms     []Room    `gorm:"constraint:OnDelete:CASCADE;" json:"rooms"`
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"createdAt"`
 }
@@ -37,7 +37,7 @@ type Room struct {
 	ID          string     `gorm:"primaryKey;size:64" json:"id"`
 	HallID      string     `gorm:"index;not null" json:"hallId"`
 	Hall        Hall       `gorm:"constraint:OnDelete:CASCADE;foreignKey:HallID" json:"-"`
-	Name        string     `gorm:"not null" json:"name"`
+	Name        string     `gorm:"not null;type:text" json:"name"`
 	DisplaySize string     `gorm:"not null;default:INCH27" json:"displaySize"`
 
 	// 빈소 LED에서 표시할 슬라이드 1개를 지정합니다.
@@ -54,7 +54,7 @@ type Slide struct {
 	Room      Room       `gorm:"constraint:OnDelete:CASCADE;foreignKey:RoomID" json:"-"`
 	S3Key     string     `gorm:"not null" json:"s3Key"`
 	ImageURL  string     `gorm:"not null" json:"imageUrl"`
-	Caption   *string    `json:"caption"`
+	Caption   *string    `gorm:"type:text" json:"caption"`
 	SortOrder int        `gorm:"index;default:0" json:"sortOrder"`
 	CreatedAt time.Time  `gorm:"autoCreateTime" json:"createdAt"`
 }
@@ -561,12 +561,11 @@ func main() {
 				_ = db.Model(&Room{}).Where("id = ?", roomId).Update("display_size", displaySize).Error
 			}
 
+			// UTF-8 한글 등 (PostgreSQL text / Go string)
 			captionPtr := (*string)(nil)
-			if displaySize == "INCH32" {
-				if v := strings.TrimSpace(r.FormValue("caption")); v != "" {
-					c := v
-					captionPtr = &c
-				}
+			if v := strings.TrimSpace(r.FormValue("caption")); v != "" {
+				c := v
+				captionPtr = &c
 			}
 
 			sortOrder := 0
@@ -671,6 +670,7 @@ func main() {
 		jsonResponse(w, http.StatusOK, map[string]any{
 			"ui": map[string]any{
 				"showCaption": showCaption,
+				"displaySize": room.DisplaySize,
 			},
 			"activeSlide": map[string]any{
 				"id":       active.ID,
