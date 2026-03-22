@@ -26,6 +26,74 @@ body {
   padding: 18px;
 }
 
+/* 관리자: 뷰포트 너비·높이 활용 */
+.page--full {
+  max-width: none;
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: clamp(12px, 2.5vw, 28px);
+  box-sizing: border-box;
+}
+
+.page--full .grid {
+  width: 100%;
+  gap: clamp(14px, 2vw, 24px);
+  margin-bottom: clamp(18px, 2.5vw, 32px);
+}
+
+.layout-band--halls {
+  width: 100%;
+}
+
+.admin-section {
+  margin-bottom: clamp(28px, 4vw, 52px);
+}
+
+.admin-section-title {
+  font-size: clamp(1.35rem, 2.8vw, 1.85rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin: 0 0 clamp(14px, 2vw, 22px);
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  color: rgba(255, 255, 255, 0.96);
+}
+
+.card-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0 0 12px;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.upload-subtitle {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 10px;
+}
+
+.page--full .card {
+  min-width: 0;
+}
+
+@media (min-width: 960px) {
+  .page--full .field {
+    grid-template-columns: minmax(100px, 140px) 1fr;
+  }
+}
+
+/* 빈소 행: 장례식장과 동일하게 전체 폭 2열 */
+.layout-band--rooms {
+  width: 100%;
+}
+
+@media (max-width: 720px) {
+  .page--full .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .topbar {
   display: flex;
   align-items: baseline;
@@ -135,6 +203,23 @@ button:disabled {
   cursor: not-allowed;
 }
 
+button.danger {
+  border-color: rgba(255, 120, 120, 0.45);
+  color: #ffc9c9;
+}
+
+button.danger:hover:not(:disabled) {
+  background: rgba(255, 80, 80, 0.12);
+}
+
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
 .error {
   border: 1px solid rgba(255, 100, 100, 0.6);
   background: rgba(255, 100, 100, 0.1);
@@ -152,6 +237,18 @@ button:disabled {
   color: rgba(255, 255, 255, 0.9);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   word-break: break-all;
+}
+
+a.code {
+  display: block;
+  text-decoration: none;
+  color: rgba(255, 255, 255, 0.92);
+  cursor: pointer;
+}
+
+a.code:hover {
+  text-decoration: underline;
+  border-color: rgba(255, 255, 255, 0.22);
 }
 
 .kiosk {

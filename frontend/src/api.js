@@ -62,6 +62,43 @@ export async function createRoom(token, { hallId, name, displaySize }) {
   });
 }
 
+export async function updateHall(token, hallId, { name, isActive }) {
+  const body = {};
+  if (name != null) body.name = name;
+  if (isActive != null) body.isActive = isActive;
+  return requestJson(`/api/halls/${hallId}`, {
+    method: "PATCH",
+    headers: headersWithToken(token),
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteHall(token, hallId) {
+  return requestJson(`/api/halls/${hallId}`, {
+    method: "DELETE",
+    headers: headersWithToken(token),
+  });
+}
+
+export async function updateRoom(token, roomId, { name, displaySize, isActive }) {
+  const body = {};
+  if (name != null) body.name = name;
+  if (displaySize != null) body.displaySize = displaySize;
+  if (isActive != null) body.isActive = isActive;
+  return requestJson(`/api/rooms/${roomId}`, {
+    method: "PATCH",
+    headers: headersWithToken(token),
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteRoom(token, roomId) {
+  return requestJson(`/api/rooms/${roomId}`, {
+    method: "DELETE",
+    headers: headersWithToken(token),
+  });
+}
+
 export async function getRoomSlides(token, roomId) {
   return requestJson(`/api/rooms/${roomId}/slides`, {
     method: "GET",
@@ -105,6 +142,13 @@ export async function uploadSlide(token, { roomId, file, caption, sortOrder, dis
     throw new Error(`HTTP ${res.status}`);
   }
   return res.json();
+}
+
+export async function deleteSlide(token, roomId, slideId) {
+  return requestJson(`/api/rooms/${roomId}/slides/${slideId}`, {
+    method: "DELETE",
+    headers: headersWithToken(token),
+  });
 }
 
 export async function getKioskRoomConfig({ roomId }) {

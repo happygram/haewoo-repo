@@ -29,46 +29,48 @@ import (
 type Hall struct {
 	ID        string    `gorm:"primaryKey;size:64" json:"id"`
 	Name      string    `gorm:"not null;type:text" json:"name"`
+	IsActive  bool      `gorm:"not null;default:true;index" json:"isActive"`
 	Rooms     []Room    `gorm:"constraint:OnDelete:CASCADE;" json:"rooms"`
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"createdAt"`
 }
 
 type Room struct {
-	ID          string     `gorm:"primaryKey;size:64" json:"id"`
-	HallID      string     `gorm:"index;not null" json:"hallId"`
-	Hall        Hall       `gorm:"constraint:OnDelete:CASCADE;foreignKey:HallID" json:"-"`
-	Name        string     `gorm:"not null;type:text" json:"name"`
-	DisplaySize string     `gorm:"not null;default:INCH27" json:"displaySize"`
+	ID          string `gorm:"primaryKey;size:64" json:"id"`
+	HallID      string `gorm:"index;not null" json:"hallId"`
+	Hall        Hall   `gorm:"constraint:OnDelete:CASCADE;foreignKey:HallID" json:"-"`
+	Name        string `gorm:"not null;type:text" json:"name"`
+	IsActive    bool   `gorm:"not null;default:true;index" json:"isActive"`
+	DisplaySize string `gorm:"not null;default:INCH27" json:"displaySize"`
 
 	// 빈소 LED에서 표시할 슬라이드 1개를 지정합니다.
 	ActiveSlideID *string `gorm:"index" json:"activeSlideId"`
 
-	Slides  []Slide  `gorm:"constraint:OnDelete:CASCADE;" json:"slides"`
+	Slides []Slide `gorm:"constraint:OnDelete:CASCADE;" json:"slides"`
 
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"createdAt"`
 }
 
 type Slide struct {
-	ID        string     `gorm:"primaryKey;size:64" json:"id"`
-	RoomID    string     `gorm:"index;not null" json:"roomId"`
-	Room      Room       `gorm:"constraint:OnDelete:CASCADE;foreignKey:RoomID" json:"-"`
-	S3Key     string     `gorm:"not null" json:"s3Key"`
-	ImageURL  string     `gorm:"not null" json:"imageUrl"`
-	Caption   *string    `gorm:"type:text" json:"caption"`
-	SortOrder int        `gorm:"index;default:0" json:"sortOrder"`
-	CreatedAt time.Time  `gorm:"autoCreateTime" json:"createdAt"`
+	ID        string    `gorm:"primaryKey;size:64" json:"id"`
+	RoomID    string    `gorm:"index;not null" json:"roomId"`
+	Room      Room      `gorm:"constraint:OnDelete:CASCADE;foreignKey:RoomID" json:"-"`
+	S3Key     string    `gorm:"not null" json:"s3Key"`
+	ImageURL  string    `gorm:"not null" json:"imageUrl"`
+	Caption   *string   `gorm:"type:text" json:"caption"`
+	SortOrder int       `gorm:"index;default:0" json:"sortOrder"`
+	CreatedAt time.Time `gorm:"autoCreateTime" json:"createdAt"`
 }
 
 type configData struct {
 	Port            int
-	AdminUsername  string
-	AdminPassword  string
-	JWTSecret      string
-	DatabaseURL    string
+	AdminUsername   string
+	AdminPassword   string
+	JWTSecret       string
+	DatabaseURL     string
 	AWSRegion       string
 	S3Bucket        string
 	ImagePublicBase string
-	S3             *s3.Client
+	S3              *s3.Client
 }
 
 func mustEnv(key string) string {
@@ -193,6 +195,54 @@ func jsonResponse(w http.ResponseWriter, status int, payload any) {
 	_ = enc.Encode(payload)
 }
 
+func deleteS3Object(ctx context.Context, client *s3.Client, bucket, key string) {
+	if client == nil || strings.TrimSpace(bucket) == "" || strings.TrimSpace(key) == "" {
+		return
+	}
+	_, err := client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		log.Printf("s3 delete %s: %v", key, err)
+	}
+}
+
+func clearActiveSlideIfMatch(db *gorm.DB, roomID, slideID string) {
+	var room Room
+	if err := db.First(&room, "id = ?", roomID).Error; err != nil {
+		return
+	}
+	if room.ActiveSlideID != nil && *room.ActiveSlideID == slideID {
+		_ = db.Model(&Room{}).Where("id = ?", roomID).Update("active_slide_id", nil).Error
+	}
+}
+
+func deleteSlideAndObject(ctx context.Context, db *gorm.DB, cfg *configData, roomID, slideID string) error {
+	var slide Slide
+	if err := db.First(&slide, "id = ? AND room_id = ?", slideID, roomID).Error; err != nil {
+		return err
+	}
+	clearActiveSlideIfMatch(db, roomID, slide.ID)
+	deleteS3Object(ctx, cfg.S3, cfg.S3Bucket, slide.S3Key)
+	return db.Delete(&Slide{}, "id = ?", slide.ID).Error
+}
+
+func deleteAllSlidesInRoom(ctx context.Context, db *gorm.DB, cfg *configData, roomID string) error {
+	_ = db.Model(&Room{}).Where("id = ?", roomID).Update("active_slide_id", nil).Error
+	var slides []Slide
+	if err := db.Where("room_id = ?", roomID).Find(&slides).Error; err != nil {
+		return err
+	}
+	for _, s := range slides {
+		deleteS3Object(ctx, cfg.S3, cfg.S3Bucket, s.S3Key)
+		if err := db.Delete(&Slide{}, "id = ?", s.ID).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func main() {
 	// go run . 실행 위치에 있는 .env를 자동 로드합니다.
 	// (예: source/backend/.env)
@@ -235,12 +285,12 @@ func main() {
 
 	cfg := configData{
 		Port:            port,
-		AdminUsername:  adminUsername,
-		AdminPassword:  adminPassword,
-		JWTSecret:      jwtSecret,
-		DatabaseURL:    databaseURL,
+		AdminUsername:   adminUsername,
+		AdminPassword:   adminPassword,
+		JWTSecret:       jwtSecret,
+		DatabaseURL:     databaseURL,
 		AWSRegion:       awsRegion,
-		S3Bucket:       s3Bucket,
+		S3Bucket:        s3Bucket,
 		ImagePublicBase: imagePublicBase,
 		S3:              s3Client,
 	}
@@ -258,7 +308,7 @@ func main() {
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			w.Header().Set("Access-Control-Allow-Origin", corsAllowOrigin)
-			w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization,Content-Type")
 			w.Header().Set("Access-Control-Max-Age", "600")
 			if req.Method == http.MethodOptions {
@@ -346,7 +396,7 @@ func main() {
 		secured.Get("/rooms", func(w http.ResponseWriter, r *http.Request) {
 			hallId := strings.TrimSpace(r.URL.Query().Get("hallId"))
 			var rooms []Room
-			q := db.Preload("Devices").Order("created_at desc")
+			q := db.Order("created_at desc")
 			if hallId != "" {
 				q = q.Where("hall_id = ?", hallId)
 			}
@@ -372,15 +422,25 @@ func main() {
 				return
 			}
 
+			var hall Hall
+			if err := db.First(&hall, "id = ?", strings.TrimSpace(body.HallID)).Error; err != nil {
+				http.Error(w, `{"error":"hall not found"}`, http.StatusNotFound)
+				return
+			}
+			if !hall.IsActive {
+				http.Error(w, `{"error":"hall is inactive"}`, http.StatusBadRequest)
+				return
+			}
+
 			displaySize := "INCH27"
 			if body.DisplaySize == "INCH32" {
 				displaySize = "INCH32"
 			}
 
 			room := Room{
-				ID:           uuid.NewString(),
-				HallID:       body.HallID,
-				Name:         body.Name,
+				ID:          uuid.NewString(),
+				HallID:      body.HallID,
+				Name:        body.Name,
 				DisplaySize: displaySize,
 			}
 			if err := db.Create(&room).Error; err != nil {
@@ -388,6 +448,123 @@ func main() {
 				return
 			}
 			jsonResponse(w, http.StatusOK, map[string]any{"room": room})
+		})
+
+		secured.Patch("/halls/{hallId}", func(w http.ResponseWriter, r *http.Request) {
+			hallID := chi.URLParam(r, "hallId")
+			var body struct {
+				Name     *string `json:"name"`
+				IsActive *bool   `json:"isActive"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, `{"error":"Invalid JSON"}`, http.StatusBadRequest)
+				return
+			}
+			var hall Hall
+			if err := db.First(&hall, "id = ?", hallID).Error; err != nil {
+				http.Error(w, `{"error":"hall not found"}`, http.StatusNotFound)
+				return
+			}
+			if body.Name != nil {
+				if strings.TrimSpace(*body.Name) == "" {
+					http.Error(w, `{"error":"name is required"}`, http.StatusBadRequest)
+					return
+				}
+				hall.Name = strings.TrimSpace(*body.Name)
+			}
+			if body.IsActive != nil {
+				hall.IsActive = *body.IsActive
+				if !hall.IsActive {
+					_ = db.Model(&Room{}).Where("hall_id = ?", hallID).Update("is_active", false).Error
+				} else {
+					_ = db.Model(&Room{}).Where("hall_id = ?", hallID).Update("is_active", true).Error
+				}
+			}
+			if err := db.Save(&hall).Error; err != nil {
+				http.Error(w, `{"error":"db error"}`, http.StatusInternalServerError)
+				return
+			}
+			jsonResponse(w, http.StatusOK, map[string]any{"hall": hall})
+		})
+
+		secured.Delete("/halls/{hallId}", func(w http.ResponseWriter, r *http.Request) {
+			hallID := chi.URLParam(r, "hallId")
+			var rooms []Room
+			if err := db.Where("hall_id = ?", hallID).Find(&rooms).Error; err != nil {
+				http.Error(w, `{"error":"db error"}`, http.StatusInternalServerError)
+				return
+			}
+			ctx := r.Context()
+			for _, rm := range rooms {
+				if err := deleteAllSlidesInRoom(ctx, db, &cfg, rm.ID); err != nil {
+					http.Error(w, `{"error":"db error"}`, http.StatusInternalServerError)
+					return
+				}
+				if err := db.Delete(&Room{}, "id = ?", rm.ID).Error; err != nil {
+					http.Error(w, `{"error":"db error"}`, http.StatusInternalServerError)
+					return
+				}
+			}
+			if err := db.Delete(&Hall{}, "id = ?", hallID).Error; err != nil {
+				http.Error(w, `{"error":"db error"}`, http.StatusInternalServerError)
+				return
+			}
+			jsonResponse(w, http.StatusOK, map[string]any{"ok": true})
+		})
+
+		secured.Patch("/rooms/{roomId}", func(w http.ResponseWriter, r *http.Request) {
+			roomID := chi.URLParam(r, "roomId")
+			var body struct {
+				Name        *string `json:"name"`
+				DisplaySize *string `json:"displaySize"`
+				IsActive    *bool   `json:"isActive"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, `{"error":"Invalid JSON"}`, http.StatusBadRequest)
+				return
+			}
+			var room Room
+			if err := db.First(&room, "id = ?", roomID).Error; err != nil {
+				http.Error(w, `{"error":"room not found"}`, http.StatusNotFound)
+				return
+			}
+			if body.Name != nil {
+				if strings.TrimSpace(*body.Name) == "" {
+					http.Error(w, `{"error":"name is required"}`, http.StatusBadRequest)
+					return
+				}
+				room.Name = strings.TrimSpace(*body.Name)
+			}
+			if body.DisplaySize != nil {
+				ds := strings.TrimSpace(*body.DisplaySize)
+				if ds != "INCH27" && ds != "INCH32" {
+					http.Error(w, `{"error":"invalid displaySize"}`, http.StatusBadRequest)
+					return
+				}
+				room.DisplaySize = ds
+			}
+			if body.IsActive != nil {
+				room.IsActive = *body.IsActive
+			}
+			if err := db.Save(&room).Error; err != nil {
+				http.Error(w, `{"error":"db error"}`, http.StatusInternalServerError)
+				return
+			}
+			jsonResponse(w, http.StatusOK, map[string]any{"room": room})
+		})
+
+		secured.Delete("/rooms/{roomId}", func(w http.ResponseWriter, r *http.Request) {
+			roomID := chi.URLParam(r, "roomId")
+			ctx := r.Context()
+			if err := deleteAllSlidesInRoom(ctx, db, &cfg, roomID); err != nil {
+				http.Error(w, `{"error":"db error"}`, http.StatusInternalServerError)
+				return
+			}
+			if err := db.Delete(&Room{}, "id = ?", roomID).Error; err != nil {
+				http.Error(w, `{"error":"db error"}`, http.StatusInternalServerError)
+				return
+			}
+			jsonResponse(w, http.StatusOK, map[string]any{"ok": true})
 		})
 
 		// =========================
@@ -439,13 +616,13 @@ func main() {
 			for _, s := range slides {
 				meta := roomMeta[s.RoomID]
 				out = append(out, hallSlideOut{
-					ID:           s.ID,
-					RoomID:       s.RoomID,
-					RoomName:     meta["roomName"].(string),
-					DisplaySize:  meta["displaySize"].(string),
-					ImageURL:     s.ImageURL,
-					Caption:      s.Caption,
-					SortOrder:    s.SortOrder,
+					ID:          s.ID,
+					RoomID:      s.RoomID,
+					RoomName:    meta["roomName"].(string),
+					DisplaySize: meta["displaySize"].(string),
+					ImageURL:    s.ImageURL,
+					Caption:     s.Caption,
+					SortOrder:   s.SortOrder,
 				})
 			}
 
@@ -474,18 +651,18 @@ func main() {
 			}
 
 			type slideOut struct {
-				ID         string  `json:"id"`
+				ID        string  `json:"id"`
 				ImageURL  string  `json:"imageUrl"`
-				Caption    *string `json:"caption"`
+				Caption   *string `json:"caption"`
 				SortOrder int     `json:"sortOrder"`
 			}
 
 			out := make([]slideOut, 0, len(slides))
 			for _, s := range slides {
 				out = append(out, slideOut{
-					ID:         s.ID,
+					ID:        s.ID,
 					ImageURL:  s.ImageURL,
-					Caption:    s.Caption,
+					Caption:   s.Caption,
 					SortOrder: s.SortOrder,
 				})
 			}
@@ -536,6 +713,21 @@ func main() {
 		// =========================
 		secured.Post("/rooms/{roomId}/slides/upload", func(w http.ResponseWriter, r *http.Request) {
 			roomId := chi.URLParam(r, "roomId")
+
+			var roomForUpload Room
+			if err := db.First(&roomForUpload, "id = ?", roomId).Error; err != nil {
+				http.Error(w, `{"error":"room not found"}`, http.StatusNotFound)
+				return
+			}
+			var hallForUpload Hall
+			if err := db.First(&hallForUpload, "id = ?", roomForUpload.HallID).Error; err != nil {
+				http.Error(w, `{"error":"hall not found"}`, http.StatusInternalServerError)
+				return
+			}
+			if !roomForUpload.IsActive || !hallForUpload.IsActive {
+				http.Error(w, `{"error":"room or hall is inactive"}`, http.StatusBadRequest)
+				return
+			}
 
 			// 25MB 제한: frontend 업로드 크기와 맞추려는 용도입니다.
 			if err := r.ParseMultipartForm(25 << 20); err != nil {
@@ -600,17 +792,17 @@ func main() {
 			}
 
 			_, err = cfg.S3.PutObject(context.Background(), &s3.PutObjectInput{
-				Bucket:      aws.String(cfg.S3Bucket),
-				Key:         aws.String(objKey),
-				Body:        bytes.NewReader(b),
+				Bucket: aws.String(cfg.S3Bucket),
+				Key:    aws.String(objKey),
+				Body:   bytes.NewReader(b),
 				// Content-Length가 없으면 S3가 411로 거절합니다.
 				ContentLength: aws.Int64(int64(len(b))),
-				ContentType: aws.String(contentType),
+				ContentType:   aws.String(contentType),
 			})
 			if err != nil {
 				// 원인 추적을 위해 AWS SDK 에러 메시지를 함께 반환합니다.
 				jsonResponse(w, http.StatusInternalServerError, map[string]any{
-					"error": "s3 put failed",
+					"error":  "s3 put failed",
 					"detail": err.Error(),
 				})
 				return
@@ -637,6 +829,16 @@ func main() {
 
 			jsonResponse(w, http.StatusOK, map[string]any{"slide": slide})
 		})
+
+		secured.Delete("/rooms/{roomId}/slides/{slideId}", func(w http.ResponseWriter, r *http.Request) {
+			roomID := chi.URLParam(r, "roomId")
+			slideID := chi.URLParam(r, "slideId")
+			if err := deleteSlideAndObject(r.Context(), db, &cfg, roomID, slideID); err != nil {
+				http.Error(w, `{"error":"slide not found"}`, http.StatusNotFound)
+				return
+			}
+			jsonResponse(w, http.StatusOK, map[string]any{"ok": true})
+		})
 	})
 
 	// =========================
@@ -651,6 +853,15 @@ func main() {
 
 		var room Room
 		if err := db.First(&room, "id = ?", roomId).Error; err != nil {
+			http.Error(w, `{"error":"room not found"}`, http.StatusNotFound)
+			return
+		}
+		if !room.IsActive {
+			http.Error(w, `{"error":"room not found"}`, http.StatusNotFound)
+			return
+		}
+		var hallKiosk Hall
+		if err := db.First(&hallKiosk, "id = ?", room.HallID).Error; err != nil || !hallKiosk.IsActive {
 			http.Error(w, `{"error":"room not found"}`, http.StatusNotFound)
 			return
 		}
@@ -686,4 +897,3 @@ func main() {
 		log.Fatalf("server error: %v", err)
 	}
 }
-
