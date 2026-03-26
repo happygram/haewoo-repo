@@ -433,8 +433,11 @@ func main() {
 			}
 
 			displaySize := "INCH27"
-			if body.DisplaySize == "INCH32" {
+			ds := strings.TrimSpace(body.DisplaySize)
+			if ds == "INCH32" {
 				displaySize = "INCH32"
+			} else if ds == "INCH24" {
+				displaySize = "INCH24"
 			}
 
 			room := Room{
@@ -537,7 +540,7 @@ func main() {
 			}
 			if body.DisplaySize != nil {
 				ds := strings.TrimSpace(*body.DisplaySize)
-				if ds != "INCH27" && ds != "INCH32" {
+				if ds != "INCH27" && ds != "INCH32" && ds != "INCH24" {
 					http.Error(w, `{"error":"invalid displaySize"}`, http.StatusBadRequest)
 					return
 				}
@@ -743,7 +746,7 @@ func main() {
 			defer file.Close()
 
 			displaySize := strings.TrimSpace(r.FormValue("displaySize"))
-			if displaySize != "INCH27" && displaySize != "INCH32" {
+			if displaySize != "INCH27" && displaySize != "INCH32" && displaySize != "INCH24" {
 				displaySize = ""
 			}
 
@@ -754,10 +757,18 @@ func main() {
 			}
 
 			// UTF-8 한글 등 (PostgreSQL text / Go string)
+			// caption은 27/32에서만 의미가 있도록 저장합니다.
+			effectiveDisplaySize := displaySize
+			if effectiveDisplaySize == "" {
+				effectiveDisplaySize = roomForUpload.DisplaySize
+			}
+
 			captionPtr := (*string)(nil)
-			if v := strings.TrimSpace(r.FormValue("caption")); v != "" {
-				c := v
-				captionPtr = &c
+			if effectiveDisplaySize == "INCH27" || effectiveDisplaySize == "INCH32" {
+				if v := strings.TrimSpace(r.FormValue("caption")); v != "" {
+					c := v
+					captionPtr = &c
+				}
 			}
 
 			sortOrder := 0
@@ -866,7 +877,7 @@ func main() {
 			return
 		}
 
-		showCaption := room.DisplaySize == "INCH32"
+		showCaption := room.DisplaySize == "INCH27" || room.DisplaySize == "INCH32"
 
 		var active Slide
 		if room.ActiveSlideID != nil && strings.TrimSpace(*room.ActiveSlideID) != "" {

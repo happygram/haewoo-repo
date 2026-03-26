@@ -9,7 +9,7 @@ export default function KioskView() {
   const [error, setError] = useState("");
 
   const [showCaption, setShowCaption] = useState(false);
-  const [displaySize, setDisplaySize] = useState("INCH27");
+  const [displaySize, setDisplaySize] = useState("INCH24");
   const [activeSlide, setActiveSlide] = useState(null);
 
   async function refresh() {
@@ -20,7 +20,7 @@ export default function KioskView() {
         const res = await getKioskRoomConfig({ roomId });
         setShowCaption(Boolean(res.ui?.showCaption));
         const ds = res.ui?.displaySize;
-        setDisplaySize(ds === "INCH32" ? "INCH32" : "INCH27");
+        setDisplaySize(ds === "INCH32" ? "INCH32" : ds === "INCH24" ? "INCH24" : "INCH27");
         setActiveSlide(res.activeSlide || null);
         setLoading(false);
         return;
@@ -43,7 +43,11 @@ export default function KioskView() {
   }, [roomId]);
 
   const kioskClass =
-    displaySize === "INCH32" ? "kiosk kiosk--inch32" : "kiosk kiosk--inch27";
+    displaySize === "INCH32"
+      ? "kiosk kiosk--inch32"
+      : displaySize === "INCH24"
+        ? "kiosk kiosk--inch24"
+        : "kiosk kiosk--inch27";
 
   return (
     <div className={kioskClass}>
@@ -51,14 +55,16 @@ export default function KioskView() {
 
       {activeSlide?.imageUrl ? (
         <div className="frame">
+          {showCaption && displaySize !== "INCH24" ? (
+            <div className="caption">
+              <div className="caption-inner">
+                {activeSlide.caption ? <div className="caption-name">故 {activeSlide.caption}</div> : null}
+              </div>
+            </div>
+          ) : null}
           <div className="kiosk-img-wrap">
             <img className="bg" src={activeSlide.imageUrl} alt="" />
           </div>
-          {showCaption ? (
-            <div className="caption">
-              <div className="caption-inner">{activeSlide.caption || ""}</div>
-            </div>
-          ) : null}
         </div>
       ) : (
         <div className="placeholder">

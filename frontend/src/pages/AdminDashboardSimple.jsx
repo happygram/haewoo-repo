@@ -47,7 +47,7 @@ export default function AdminDashboardSimple() {
   const [roomManageHallId, setRoomManageHallId] = useState("");
   const [roomManageId, setRoomManageId] = useState("");
   const [roomManageName, setRoomManageName] = useState("");
-  const [roomManageDisplaySize, setRoomManageDisplaySize] = useState("INCH27");
+  const [roomManageDisplaySize, setRoomManageDisplaySize] = useState("INCH24");
 
   // 5) 사진 업로드
   const [uploadHallId, setUploadHallId] = useState("");
@@ -59,9 +59,14 @@ export default function AdminDashboardSimple() {
     [allRooms, uploadHallId]
   );
   const [roomIdForUpload, setRoomIdForUpload] = useState("");
-  const [uploadInch, setUploadInch] = useState("INCH27");
+  const [uploadInch, setUploadInch] = useState("INCH24");
   const [caption, setCaption] = useState("");
   const [files, setFiles] = useState([]);
+
+  useEffect(() => {
+    // INCH24는 하단 텍스트(故 이름) 영역을 표시하지 않으므로, 이전에 입력한 값이 업로드에 섞이지 않게 합니다.
+    if (uploadInch === "INCH24") setCaption("");
+  }, [uploadInch]);
 
   const [roomSlides, setRoomSlides] = useState([]);
   const [roomSlidesLoading, setRoomSlidesLoading] = useState(false);
@@ -80,6 +85,12 @@ export default function AdminDashboardSimple() {
     const cur = roomSlides.find((s) => s.id === roomActiveSlideId);
     return cur?.imageUrl || "";
   }, [roomSlides, roomActiveSlideId]);
+
+  const selectedManageRoom = useMemo(() => allRooms.find((r) => r.id === roomManageId) || null, [allRooms, roomManageId]);
+  const selectedUploadRoom = useMemo(
+    () => allRooms.find((r) => r.id === roomIdForUpload) || null,
+    [allRooms, roomIdForUpload]
+  );
 
   const roomsInManageHall = useMemo(
     () =>
@@ -413,6 +424,11 @@ export default function AdminDashboardSimple() {
               ))}
             </select>
           </label>
+          {selectedManageRoom ? (
+            <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+              선택한 빈소 표시 인치: {selectedManageRoom.displaySize}
+            </div>
+          ) : null}
           <label className="field">
             <span>이름</span>
             <input value={roomManageName} onChange={(e) => setRoomManageName(e.target.value)} disabled={!roomManageId} />
@@ -420,6 +436,7 @@ export default function AdminDashboardSimple() {
           <label className="field">
             <span>표시 인치</span>
             <select value={roomManageDisplaySize} onChange={(e) => setRoomManageDisplaySize(e.target.value)} disabled={!roomManageId}>
+              <option value="INCH24">24인치</option>
               <option value="INCH27">27인치</option>
               <option value="INCH32">32인치</option>
             </select>
@@ -535,25 +552,33 @@ export default function AdminDashboardSimple() {
                 </a>
               </div>
             ) : null}
+            {selectedUploadRoom ? (
+              <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+                선택한 빈소 표시 인치: {selectedUploadRoom.displaySize}
+              </div>
+            ) : null}
             <label className="field">
               <span>인치</span>
               <select value={uploadInch} onChange={(e) => setUploadInch(e.target.value)}>
-                <option value="INCH27">27인치 (키오스크에 텍스트 미표시)</option>
+                <option value="INCH24">24인치 (하단 텍스트 미표시)</option>
+                <option value="INCH27">27인치 (키오스크 하단에 텍스트 표시)</option>
                 <option value="INCH32">32인치 (키오스크 하단에 텍스트 표시)</option>
               </select>
             </label>
-            <label className="field field--top">
-              <span>내용</span>
-              <textarea
-                className="field-textarea"
-                rows={3}
-                lang="ko"
-                value={caption}
-                onChange={(e) => setCaption(e.target.value)}
-                placeholder="한글 입력 가능 (예: 000장례식장 특2호 / 안내 문구). 32인치에서만 키오스크에 표시됩니다."
-                autoComplete="off"
-              />
-            </label>
+            {uploadInch === "INCH24" ? null : (
+              <label className="field field--top">
+                <span>故(고) 이름</span>
+                <textarea
+                  className="field-textarea"
+                  rows={3}
+                  lang="ko"
+                  value={caption}
+                  onChange={(e) => setCaption(e.target.value)}
+                  placeholder="예: 홍길동 (키오스크 하단에 '故 홍길동'으로 표시됩니다)"
+                  autoComplete="off"
+                />
+              </label>
+            )}
             <label className="field">
               <span>사진 파일</span>
               <input type="file" multiple accept="image/*" onChange={(e) => setFiles(Array.from(e.target.files || []))} />
