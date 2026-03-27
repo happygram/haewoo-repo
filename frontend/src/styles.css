@@ -290,6 +290,9 @@ a.code:hover {
   --kiosk-caption-phrase-fs: clamp(1.05rem, 2.2vmin, 1.55rem);
   --kiosk-caption-name-fs: clamp(4.0rem, 8.0vmin, 7.0rem);
   --kiosk-caption-lh: 1.32;
+  /* 요청: 32인치 화면 전체는 아래로, 이름은 더 위로 */
+  --kiosk-frame-shift-y: 5cm;
+  --kiosk-name-shift-y: -1.5cm;
 }
 
 .kiosk--inch24 {
@@ -304,6 +307,10 @@ a.code:hover {
   display: flex;
   flex-direction: column;
   background: #000;
+}
+
+.kiosk--inch32 .frame {
+  transform: translateY(var(--kiosk-frame-shift-y, 0));
 }
 
 /* 이미지: 화면을 덮어 잘리지 않게 전체가 보이도록(contain), 여백은 검정 레터박스 */
@@ -371,6 +378,10 @@ a.code:hover {
   word-break: keep-all;
   /* 이름(故 ○○)은 궁서체 계열로 표시 */
   font-family: "궁서체", "Gungsuh", "STKaiti", "KaiTi", "PMingLiU", "SimSun", serif;
+}
+
+.kiosk--inch32 .caption-name {
+  transform: translateY(var(--kiosk-name-shift-y, 0));
 }
 
 /* 27/32에서는 이미지가 캡션 영역을 침범하지 않게 위쪽으로 더 배치 */
