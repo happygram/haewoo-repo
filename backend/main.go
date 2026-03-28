@@ -870,6 +870,7 @@ func main() {
 			slideID := chi.URLParam(r, "slideId")
 			var body struct {
 				Religion *string `json:"religion"`
+				Caption  *string `json:"caption"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 				http.Error(w, `{"error":"Invalid JSON"}`, http.StatusBadRequest)
@@ -888,6 +889,14 @@ func main() {
 				default:
 					http.Error(w, `{"error":"invalid religion"}`, http.StatusBadRequest)
 					return
+				}
+			}
+			if body.Caption != nil {
+				v := strings.TrimSpace(*body.Caption)
+				if v == "" {
+					slide.Caption = nil
+				} else {
+					slide.Caption = &v
 				}
 			}
 			if err := db.Save(&slide).Error; err != nil {

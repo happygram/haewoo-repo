@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { getKioskRoomConfig } from "../api.js";
 
 export default function KioskView() {
@@ -11,24 +11,32 @@ export default function KioskView() {
   const [showCaption, setShowCaption] = useState(false);
   const [displaySize, setDisplaySize] = useState("INCH24");
   const [activeSlide, setActiveSlide] = useState(null);
-  const [markLoadFailed, setMarkLoadFailed] = useState(false);
 
-  const religionMarkSrc = (religion) => {
-    switch (religion) {
-      case "CHRISTIAN":
-        return "/kiosk-marks/christian.png";
-      case "CATHOLIC":
-        return "/kiosk-marks/catholic.png";
-      case "BUDDHIST":
-        return "/kiosk-marks/buddhist.png";
-      default:
-        return "";
-    }
-  };
+  const showHanjaCaption =
+    Boolean(showCaption && displaySize !== "INCH24" && activeSlide?.caption && !activeSlide?.religion);
+  const showRestStrip =
+    Boolean(showCaption && displaySize !== "INCH24" && activeSlide?.religion);
+
+  const restMainPhotoRef = useRef(null);
+  const [restPhotoWidthPx, setRestPhotoWidthPx] = useState(null);
 
   useEffect(() => {
-    setMarkLoadFailed(false);
-  }, [activeSlide?.religion, activeSlide?.id]);
+    if (!showRestStrip) {
+      setRestPhotoWidthPx(null);
+      return;
+    }
+    const el = restMainPhotoRef.current;
+    if (!el) return;
+    const update = () => setRestPhotoWidthPx(el.offsetWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    el.addEventListener("load", update);
+    return () => {
+      ro.disconnect();
+      el.removeEventListener("load", update);
+    };
+  }, [showRestStrip, activeSlide?.imageUrl]);
 
   async function refresh() {
     if (roomId) {
@@ -73,28 +81,48 @@ export default function KioskView() {
 
       {activeSlide?.imageUrl ? (
         <div className="frame">
-          {showCaption && displaySize !== "INCH24" && activeSlide.caption ? (
-            <div className="caption">
-              <div className="caption-inner">
-                <div className="caption-name">
-                  {religionMarkSrc(activeSlide.religion) && !markLoadFailed ? (
-                    <img
-                      className="religion-mark"
-                      src={religionMarkSrc(activeSlide.religion)}
-                      alt=""
-                      onError={() => setMarkLoadFailed(true)}
-                    />
-                  ) : (
-                    <span className="hanja">故</span>
-                  )}
-                  <span className="name-text">{activeSlide.caption}</span>
-                </div>
+          {showRestStrip ? (
+            <>
+              <div className="kiosk-img-wrap">
+                <img ref={restMainPhotoRef} className="bg" src={activeSlide.imageUrl} alt="" />
               </div>
-            </div>
-          ) : null}
+              <div className="kiosk-rest-strip" aria-hidden>
+                <img
+                  className="kiosk-rest-img"
+                  src="/rest-01.jpg"
+                  alt=""
+                  style={
+                    restPhotoWidthPx != null && restPhotoWidthPx > 0
+                      ? { width: restPhotoWidthPx, maxWidth: restPhotoWidthPx }
+                      : undefined
+                  }
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              {showHanjaCaption ? (
+                <div className="caption">
+                  <div className="caption-inner">
+                    <div className="caption-name">
+                      <span className="hanja">故</span>
+                      <span className="name-text">{activeSlide.caption}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+              <div className="kiosk-img-wrap">
+                <img className="bg" src={activeSlide.imageUrl} alt="" />
+              </div>
+            </>
+          )}
+        </div>
+      ) : roomId && !error ? (
+        <div className="frame kiosk-frame--no-photo">
           <div className="kiosk-img-wrap">
-            <img className="bg" src={activeSlide.imageUrl} alt="" />
+            <img className="bg" src="/rest-02.jpg" alt="" />
           </div>
+          {loading ? <div className="kiosk-fallback-loading">로딩 중...</div> : null}
         </div>
       ) : (
         <div className="placeholder">
@@ -104,4 +132,3 @@ export default function KioskView() {
     </div>
   );
 }
-

@@ -309,6 +309,23 @@ a.code:hover {
   background: #000;
 }
 
+.kiosk .kiosk-frame--no-photo {
+  position: relative;
+}
+
+.kiosk .kiosk-fallback-loading {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: clamp(12px, 2.2vmin, 28px);
+  text-align: center;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: clamp(14px, 1.9vmin, 20px);
+  font-weight: 600;
+  pointer-events: none;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.75);
+}
+
 /* 이미지: 화면을 덮어 잘리지 않게 전체가 보이도록(contain), 여백은 검정 레터박스 */
 .kiosk .kiosk-img-wrap {
   flex: 1 1 auto;
@@ -375,21 +392,36 @@ a.code:hover {
   /* 이름(故 ○○)은 궁서체 계열로 표시 */
   font-family: "궁서체", "Gungsuh", "STKaiti", "KaiTi", "PMingLiU", "SimSun", serif;
   display: inline-flex;
-  /* 이미지(마크)와 글자를 같은 기준선으로 정렬 */
   align-items: baseline;
   justify-content: center;
   gap: clamp(10px, 1.6vmin, 22px);
   line-height: 1;
 }
 
-.kiosk .religion-mark {
-  /* 글자 높이(1em)와 동일하게 맞춤 */
-  height: 1em;
+/* 고(故) 미선택 시: 메인 사진 아래 휴식 안내 — 동일 너비·우측 정렬, 메인은 남은 높이·rest는 콘텐츠 높이 */
+.kiosk .kiosk-rest-strip {
+  flex-shrink: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  box-sizing: border-box;
+  padding: 0 0 clamp(4px, 0.8vmin, 10px);
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.92));
+}
+
+.kiosk .kiosk-img-wrap:has(+ .kiosk-rest-strip) {
+  padding-bottom: 0;
+}
+
+.kiosk .kiosk-rest-img {
+  display: block;
   width: auto;
-  display: inline-block;
+  max-width: 100%;
+  max-height: min(52vh, 720px);
+  height: auto;
   object-fit: contain;
-  /* 폰트/이미지 기준선 차이를 미세 보정 */
-  transform: translateY(0.14em);
+  object-position: right center;
 }
 
 .kiosk .hanja {
@@ -413,6 +445,10 @@ a.code:hover {
 .kiosk--inch32 .kiosk-img-wrap {
   align-items: flex-start;
   padding-bottom: 0;
+}
+
+.kiosk--inch32 .kiosk-rest-strip {
+  align-items: flex-start;
 }
 
 /* 세로 해상도가 낮은 패널(예: 1366x768, 1280x720)에서는 캡션 영역을 줄여 이미지 확보 */

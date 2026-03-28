@@ -21,14 +21,17 @@ function isEntityActive(x) {
 function religionLabel(v) {
   switch (v) {
     case "CHRISTIAN":
-      return "기독교";
     case "CATHOLIC":
-      return "천주교";
     case "BUDDHIST":
-      return "불교";
+      return "휴식 안내 이미지";
     default:
-      return "기본(故)";
+      return "고(故·이름)";
   }
+}
+
+/** 슬라이드에 저장된 값(구 종교 슬롯 포함) → 셀렉트 value */
+function religionDraftSelectValue(v) {
+  return v === "CHRISTIAN" || v === "CATHOLIC" || v === "BUDDHIST" ? "REST" : "";
 }
 
 export default function AdminDashboardSimple() {
@@ -74,11 +77,12 @@ export default function AdminDashboardSimple() {
   );
   const [roomIdForUpload, setRoomIdForUpload] = useState("");
   const [uploadInch, setUploadInch] = useState("INCH24");
+  /** 27·32인치 업로드 시: 고(故·이름) vs 휴식 안내 이미지 */
+  const [uploadBottomMode, setUploadBottomMode] = useState("HANJA");
   const [caption, setCaption] = useState("");
   const [files, setFiles] = useState([]);
 
   useEffect(() => {
-    // INCH24는 하단 텍스트(故 이름) 영역을 표시하지 않으므로, 이전에 입력한 값이 업로드에 섞이지 않게 합니다.
     if (uploadInch === "INCH24") {
       setCaption("");
     }
@@ -90,6 +94,8 @@ export default function AdminDashboardSimple() {
   const [roomActiveSlideId, setRoomActiveSlideId] = useState("");
   const [activeDraft, setActiveDraft] = useState("");
   const [activeReligionDraft, setActiveReligionDraft] = useState("");
+  /** 표시 지정 — 선택 슬라이드의 이름(故) 편집 */
+  const [slideCaptionDraft, setSlideCaptionDraft] = useState("");
 
   const [msg, setMsg] = useState("");
 
@@ -203,6 +209,11 @@ export default function AdminDashboardSimple() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomIdForUpload]);
 
+  useEffect(() => {
+    const s = roomSlides.find((x) => x.id === activeDraft);
+    setSlideCaptionDraft(s?.caption || "");
+  }, [activeDraft, roomSlides]);
+
   async function onCreateHall(e) {
     e.preventDefault();
     setMsg("");
@@ -240,8 +251,22 @@ export default function AdminDashboardSimple() {
       return;
     }
 
-    const captionTrimmed = caption.trim();
-    const applyCaption = captionTrimmed || null;
+    const isWideInch = uploadInch === "INCH27" || uploadInch === "INCH32";
+    let applyCaption = null;
+    let religionForUpload = "";
+    if (uploadInch === "INCH24") {
+      applyCaption = null;
+    } else if (isWideInch && uploadBottomMode === "REST") {
+      applyCaption = null;
+      religionForUpload = "CHRISTIAN";
+    } else {
+      const captionTrimmed = caption.trim();
+      if (!captionTrimmed) {
+        setMsg("「고(故·이름)」을 선택한 경우 이름을 입력하세요.");
+        return;
+      }
+      applyCaption = captionTrimmed;
+    }
 
     try {
       let idx = 0;
@@ -250,7 +275,7 @@ export default function AdminDashboardSimple() {
           roomId: roomIdForUpload,
           file,
           caption: applyCaption,
-          religion: "",
+          religion: religionForUpload,
           sortOrder: idx,
           displaySize: uploadInch,
         });
@@ -590,18 +615,33 @@ export default function AdminDashboardSimple() {
               </select>
             </label>
             {uploadInch === "INCH24" ? null : (
-              <label className="field field--top">
-                <span>故(고) 이름</span>
-                <textarea
-                  className="field-textarea"
-                  rows={3}
-                  lang="ko"
-                  value={caption}
-                  onChange={(e) => setCaption(e.target.value)}
-                  placeholder="예: 홍길동 (종교 마크 선택 시 故 대신 마크 이미지가 표시됩니다)"
-                  autoComplete="off"
-                />
-              </label>
+              <>
+                <label className="field">
+                  <span>하단 표시 (27·32인치)</span>
+                  <select value={uploadBottomMode} onChange={(e) => setUploadBottomMode(e.target.value)}>
+                    <option value="HANJA">고(故·이름)</option>
+                    <option value="REST">휴식 안내 이미지</option>
+                  </select>
+                </label>
+                {uploadBottomMode === "HANJA" ? (
+                  <label className="field field--top">
+                    <span>故(고) 이름</span>
+                    <textarea
+                      className="field-textarea"
+                      rows={3}
+                      lang="ko"
+                      value={caption}
+                      onChange={(e) => setCaption(e.target.value)}
+                      placeholder="예: 홍길동"
+                      autoComplete="off"
+                    />
+                  </label>
+                ) : (
+                  <div className="muted" style={{ marginTop: 6, fontSize: 13 }}>
+                    업로드 후에도 아래 「저장된 이미지 URL 목록」에서 고 ↔ 휴식 안내 이미지를 바꾼 뒤 「표시 지정」하면 됩니다.
+                  </div>
+                )}
+              </>
             )}
             <label className="field">
               <span>사진 파일</span>
@@ -650,23 +690,70 @@ export default function AdminDashboardSimple() {
                   </select>
                 </label>
                 {selectedUploadRoom?.displaySize !== "INCH24" ? (
-                  <label className="field" style={{ marginTop: 8 }}>
-                    <span>종교 마크 (표시 지정 시 적용)</span>
-                    <select value={activeReligionDraft} onChange={(e) => setActiveReligionDraft(e.target.value)}>
-                      <option value="">고</option>
-                      <option value="CHRISTIAN">CHRISTIAN</option>
-                      <option value="CATHOLIC">CATHOLIC</option>
-                      <option value="BUDDHIST">BUDDHIST</option>
-                    </select>
-                  </label>
+                  <>
+                    <p className="muted" style={{ marginTop: 10, marginBottom: 0, fontSize: 13, lineHeight: 1.45 }}>
+                      사진을 올린 뒤에도 여기서 <strong>고(故·이름)</strong>과 <strong>휴식 안내 이미지</strong>를
+                      번갈아 선택할 수 있습니다. 바꾼 뒤 반드시 「표시 지정」을 눌러 키오스크에 반영하세요.
+                    </p>
+                    <label className="field" style={{ marginTop: 8 }}>
+                      <span>하단 표시 (표시 지정 시 적용)</span>
+                      <select
+                        value={religionDraftSelectValue(activeReligionDraft)}
+                        onChange={(e) => {
+                          const rest = e.target.value === "REST";
+                          setActiveReligionDraft(rest ? "CHRISTIAN" : "");
+                          if (!rest) {
+                            const slide = roomSlides.find((s) => s.id === activeDraft);
+                            setSlideCaptionDraft(slide?.caption || "");
+                          }
+                        }}
+                      >
+                        <option value="">고(故·이름)</option>
+                        <option value="REST">휴식 안내 이미지</option>
+                      </select>
+                    </label>
+                    {religionDraftSelectValue(activeReligionDraft) === "" ? (
+                      <label className="field field--top" style={{ marginTop: 8 }}>
+                        <span>故(고) 이름</span>
+                        <textarea
+                          className="field-textarea"
+                          rows={3}
+                          lang="ko"
+                          value={slideCaptionDraft}
+                          onChange={(e) => setSlideCaptionDraft(e.target.value)}
+                          placeholder="고 선택 시 표시할 이름"
+                          autoComplete="off"
+                        />
+                      </label>
+                    ) : null}
+                  </>
                 ) : null}
                 <button
                   type="button"
                   disabled={!roomIdForUpload || !activeDraft}
                   onClick={async () => {
                     try {
-                      const religionToApply = selectedUploadRoom?.displaySize === "INCH24" ? "" : activeReligionDraft;
-                      await updateSlide(token, roomIdForUpload, activeDraft, { religion: religionToApply });
+                      const ds = selectedUploadRoom?.displaySize;
+                      const isWide = ds === "INCH27" || ds === "INCH32";
+                      const restMode = isWide && religionDraftSelectValue(activeReligionDraft) === "REST";
+                      const religionToApply = ds === "INCH24" ? "" : restMode ? "CHRISTIAN" : "";
+                      let captionPatch;
+                      if (ds === "INCH24") {
+                        captionPatch = undefined;
+                      } else if (restMode) {
+                        captionPatch = "";
+                      } else {
+                        const name = slideCaptionDraft.trim();
+                        if (!name) {
+                          setMsg("「고(故·이름)」을 선택한 경우 이름을 입력하세요.");
+                          return;
+                        }
+                        captionPatch = name;
+                      }
+                      await updateSlide(token, roomIdForUpload, activeDraft, {
+                        religion: religionToApply,
+                        ...(captionPatch !== undefined ? { caption: captionPatch } : {}),
+                      });
                       await setRoomActiveSlide(token, roomIdForUpload, { slideId: activeDraft });
                       setRoomActiveSlideId(activeDraft);
                       setMsg("표시 지정 완료");

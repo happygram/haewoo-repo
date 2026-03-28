@@ -152,9 +152,10 @@ export async function deleteSlide(token, roomId, slideId) {
   });
 }
 
-export async function updateSlide(token, roomId, slideId, { religion }) {
+export async function updateSlide(token, roomId, slideId, { religion, caption }) {
   const body = {};
   if (religion != null) body.religion = religion;
+  if (caption !== undefined) body.caption = caption;
   return requestJson(`/api/rooms/${roomId}/slides/${slideId}`, {
     method: "PATCH",
     headers: headersWithToken(token),
