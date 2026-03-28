@@ -11,6 +11,24 @@ export default function KioskView() {
   const [showCaption, setShowCaption] = useState(false);
   const [displaySize, setDisplaySize] = useState("INCH24");
   const [activeSlide, setActiveSlide] = useState(null);
+  const [markLoadFailed, setMarkLoadFailed] = useState(false);
+
+  const religionMarkSrc = (religion) => {
+    switch (religion) {
+      case "CHRISTIAN":
+        return "/kiosk-marks/christian.png";
+      case "CATHOLIC":
+        return "/kiosk-marks/catholic.png";
+      case "BUDDHIST":
+        return "/kiosk-marks/buddhist.png";
+      default:
+        return "";
+    }
+  };
+
+  useEffect(() => {
+    setMarkLoadFailed(false);
+  }, [activeSlide?.religion, activeSlide?.id]);
 
   async function refresh() {
     if (roomId) {
@@ -55,10 +73,22 @@ export default function KioskView() {
 
       {activeSlide?.imageUrl ? (
         <div className="frame">
-          {showCaption && displaySize !== "INCH24" ? (
+          {showCaption && displaySize !== "INCH24" && activeSlide.caption ? (
             <div className="caption">
               <div className="caption-inner">
-                {activeSlide.caption ? <div className="caption-name">故 {activeSlide.caption}</div> : null}
+                <div className="caption-name">
+                  {religionMarkSrc(activeSlide.religion) && !markLoadFailed ? (
+                    <img
+                      className="religion-mark"
+                      src={religionMarkSrc(activeSlide.religion)}
+                      alt=""
+                      onError={() => setMarkLoadFailed(true)}
+                    />
+                  ) : (
+                    <span className="hanja">故</span>
+                  )}
+                  <span className="name-text">{activeSlide.caption}</span>
+                </div>
               </div>
             </div>
           ) : null}

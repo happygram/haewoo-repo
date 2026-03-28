@@ -57,6 +57,8 @@ type Slide struct {
 	S3Key     string    `gorm:"not null" json:"s3Key"`
 	ImageURL  string    `gorm:"not null" json:"imageUrl"`
 	Caption   *string   `gorm:"type:text" json:"caption"`
+	// Religion: "", "CHRISTIAN", "CATHOLIC", "BUDDHIST"
+	Religion string `gorm:"not null;default:'';type:text" json:"religion"`
 	SortOrder int       `gorm:"index;default:0" json:"sortOrder"`
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"createdAt"`
 }
@@ -657,6 +659,7 @@ func main() {
 				ID        string  `json:"id"`
 				ImageURL  string  `json:"imageUrl"`
 				Caption   *string `json:"caption"`
+				Religion  string  `json:"religion"`
 				SortOrder int     `json:"sortOrder"`
 			}
 
@@ -666,6 +669,7 @@ func main() {
 					ID:        s.ID,
 					ImageURL:  s.ImageURL,
 					Caption:   s.Caption,
+					Religion:  s.Religion,
 					SortOrder: s.SortOrder,
 				})
 			}
@@ -771,6 +775,15 @@ func main() {
 				}
 			}
 
+			religion := strings.TrimSpace(r.FormValue("religion"))
+			switch religion {
+			case "", "CHRISTIAN", "CATHOLIC", "BUDDHIST":
+				// ok
+			default:
+				http.Error(w, `{"error":"invalid religion"}`, http.StatusBadRequest)
+				return
+			}
+
 			sortOrder := 0
 			if v := strings.TrimSpace(r.FormValue("sortOrder")); v != "" {
 				if n, err := strconv.Atoi(v); err == nil {
@@ -828,6 +841,7 @@ func main() {
 				S3Key:     objKey,
 				ImageURL:  imgURL,
 				Caption:   captionPtr,
+				Religion:  religion,
 				SortOrder: sortOrder,
 			}
 			if err := db.Create(&slide).Error; err != nil {
@@ -849,6 +863,38 @@ func main() {
 				return
 			}
 			jsonResponse(w, http.StatusOK, map[string]any{"ok": true})
+		})
+
+		secured.Patch("/rooms/{roomId}/slides/{slideId}", func(w http.ResponseWriter, r *http.Request) {
+			roomID := chi.URLParam(r, "roomId")
+			slideID := chi.URLParam(r, "slideId")
+			var body struct {
+				Religion *string `json:"religion"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, `{"error":"Invalid JSON"}`, http.StatusBadRequest)
+				return
+			}
+			var slide Slide
+			if err := db.First(&slide, "id = ? AND room_id = ?", slideID, roomID).Error; err != nil {
+				http.Error(w, `{"error":"slide not found"}`, http.StatusNotFound)
+				return
+			}
+			if body.Religion != nil {
+				v := strings.TrimSpace(*body.Religion)
+				switch v {
+				case "", "CHRISTIAN", "CATHOLIC", "BUDDHIST":
+					slide.Religion = v
+				default:
+					http.Error(w, `{"error":"invalid religion"}`, http.StatusBadRequest)
+					return
+				}
+			}
+			if err := db.Save(&slide).Error; err != nil {
+				http.Error(w, `{"error":"db error"}`, http.StatusInternalServerError)
+				return
+			}
+			jsonResponse(w, http.StatusOK, map[string]any{"slide": slide})
 		})
 	})
 
@@ -898,6 +944,7 @@ func main() {
 				"id":       active.ID,
 				"imageUrl": active.ImageURL,
 				"caption":  active.Caption,
+				"religion": active.Religion,
 			},
 		})
 	})

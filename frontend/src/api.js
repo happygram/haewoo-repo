@@ -114,10 +114,11 @@ export async function setRoomActiveSlide(token, roomId, { slideId }) {
   });
 }
 
-export async function uploadSlide(token, { roomId, file, caption, sortOrder, displaySize }) {
+export async function uploadSlide(token, { roomId, file, caption, religion, sortOrder, displaySize }) {
   const form = new FormData();
   form.append("file", file);
   if (caption != null) form.append("caption", String(caption));
+  if (religion != null) form.append("religion", String(religion));
   if (sortOrder != null) form.append("sortOrder", String(sortOrder));
   if (displaySize != null) form.append("displaySize", String(displaySize));
 
@@ -148,6 +149,16 @@ export async function deleteSlide(token, roomId, slideId) {
   return requestJson(`/api/rooms/${roomId}/slides/${slideId}`, {
     method: "DELETE",
     headers: headersWithToken(token),
+  });
+}
+
+export async function updateSlide(token, roomId, slideId, { religion }) {
+  const body = {};
+  if (religion != null) body.religion = religion;
+  return requestJson(`/api/rooms/${roomId}/slides/${slideId}`, {
+    method: "PATCH",
+    headers: headersWithToken(token),
+    body: JSON.stringify(body),
   });
 }
 

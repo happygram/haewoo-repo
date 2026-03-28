@@ -8,6 +8,7 @@ import {
   getHalls,
   getRoomSlides,
   setRoomActiveSlide,
+  updateSlide,
   updateHall,
   updateRoom,
   uploadSlide,
@@ -15,6 +16,19 @@ import {
 
 function isEntityActive(x) {
   return x == null || x.isActive !== false;
+}
+
+function religionLabel(v) {
+  switch (v) {
+    case "CHRISTIAN":
+      return "기독교";
+    case "CATHOLIC":
+      return "천주교";
+    case "BUDDHIST":
+      return "불교";
+    default:
+      return "기본(故)";
+  }
 }
 
 export default function AdminDashboardSimple() {
@@ -65,7 +79,9 @@ export default function AdminDashboardSimple() {
 
   useEffect(() => {
     // INCH24는 하단 텍스트(故 이름) 영역을 표시하지 않으므로, 이전에 입력한 값이 업로드에 섞이지 않게 합니다.
-    if (uploadInch === "INCH24") setCaption("");
+    if (uploadInch === "INCH24") {
+      setCaption("");
+    }
   }, [uploadInch]);
 
   const [roomSlides, setRoomSlides] = useState([]);
@@ -73,6 +89,7 @@ export default function AdminDashboardSimple() {
   const [roomSlidesError, setRoomSlidesError] = useState("");
   const [roomActiveSlideId, setRoomActiveSlideId] = useState("");
   const [activeDraft, setActiveDraft] = useState("");
+  const [activeReligionDraft, setActiveReligionDraft] = useState("");
 
   const [msg, setMsg] = useState("");
 
@@ -168,9 +185,11 @@ export default function AdminDashboardSimple() {
         const res = await getRoomSlides(token, roomIdForUpload);
         const slides = res.slides || [];
         const active = res.activeSlideId || "";
+        const picked = active || (slides[0] ? slides[0].id : "");
         setRoomSlides(slides);
         setRoomActiveSlideId(active);
-        setActiveDraft(active || (slides[0] ? slides[0].id : ""));
+        setActiveDraft(picked);
+        setActiveReligionDraft(slides.find((s) => s.id === picked)?.religion || "");
       } catch (e) {
         setRoomSlides([]);
         setRoomActiveSlideId("");
@@ -231,6 +250,7 @@ export default function AdminDashboardSimple() {
           roomId: roomIdForUpload,
           file,
           caption: applyCaption,
+          religion: "",
           sortOrder: idx,
           displaySize: uploadInch,
         });
@@ -244,9 +264,11 @@ export default function AdminDashboardSimple() {
       const roomRes = await getRoomSlides(token, roomIdForUpload);
       const slides = roomRes.slides || [];
       const active = roomRes.activeSlideId || "";
+      const picked = active || (slides[0] ? slides[0].id : "");
       setRoomSlides(slides);
       setRoomActiveSlideId(active);
-      setActiveDraft(active || (slides[0] ? slides[0].id : ""));
+      setActiveDraft(picked);
+      setActiveReligionDraft(slides.find((s) => s.id === picked)?.religion || "");
     } catch (err) {
       setMsg(err.message || "업로드 실패");
     }
@@ -256,9 +278,11 @@ export default function AdminDashboardSimple() {
     const roomRes = await getRoomSlides(token, roomIdForUpload);
     const slides = roomRes.slides || [];
     const active = roomRes.activeSlideId || "";
+    const picked = active || (slides[0] ? slides[0].id : "");
     setRoomSlides(slides);
     setRoomActiveSlideId(active);
-    setActiveDraft(active || (slides[0] ? slides[0].id : ""));
+    setActiveDraft(picked);
+    setActiveReligionDraft(slides.find((s) => s.id === picked)?.religion || "");
   }
 
   return (
@@ -574,7 +598,7 @@ export default function AdminDashboardSimple() {
                   lang="ko"
                   value={caption}
                   onChange={(e) => setCaption(e.target.value)}
-                  placeholder="예: 홍길동 (키오스크 하단에 '故 홍길동'으로 표시됩니다)"
+                  placeholder="예: 홍길동 (종교 마크 선택 시 故 대신 마크 이미지가 표시됩니다)"
                   autoComplete="off"
                 />
               </label>
@@ -610,7 +634,14 @@ export default function AdminDashboardSimple() {
               <>
                 <label className="field" style={{ marginTop: 10 }}>
                   <span>표시할 주소</span>
-                  <select value={activeDraft || roomActiveSlideId || ""} onChange={(e) => setActiveDraft(e.target.value)}>
+                  <select
+                    value={activeDraft || roomActiveSlideId || ""}
+                    onChange={(e) => {
+                      const nextId = e.target.value;
+                      setActiveDraft(nextId);
+                      setActiveReligionDraft(roomSlides.find((s) => s.id === nextId)?.religion || "");
+                    }}
+                  >
                     {roomSlides.map((s, idx) => (
                       <option key={s.id} value={s.id}>
                         #{idx + 1} {s.imageUrl.length > 46 ? `${s.imageUrl.slice(0, 46)}...` : s.imageUrl}
@@ -618,18 +649,34 @@ export default function AdminDashboardSimple() {
                     ))}
                   </select>
                 </label>
+                {selectedUploadRoom?.displaySize !== "INCH24" ? (
+                  <label className="field" style={{ marginTop: 8 }}>
+                    <span>종교 마크 (표시 지정 시 적용)</span>
+                    <select value={activeReligionDraft} onChange={(e) => setActiveReligionDraft(e.target.value)}>
+                      <option value="">고</option>
+                      <option value="CHRISTIAN">CHRISTIAN</option>
+                      <option value="CATHOLIC">CATHOLIC</option>
+                      <option value="BUDDHIST">BUDDHIST</option>
+                    </select>
+                  </label>
+                ) : null}
                 <button
                   type="button"
-                  disabled={!roomIdForUpload || !activeDraft || activeDraft === roomActiveSlideId}
+                  disabled={!roomIdForUpload || !activeDraft}
                   onClick={async () => {
                     try {
+                      const religionToApply = selectedUploadRoom?.displaySize === "INCH24" ? "" : activeReligionDraft;
+                      await updateSlide(token, roomIdForUpload, activeDraft, { religion: religionToApply });
                       await setRoomActiveSlide(token, roomIdForUpload, { slideId: activeDraft });
                       setRoomActiveSlideId(activeDraft);
                       setMsg("표시 지정 완료");
                       const roomRes = await getRoomSlides(token, roomIdForUpload);
-                      setRoomSlides(roomRes.slides || []);
+                      const slides = roomRes.slides || [];
+                      setRoomSlides(slides);
                       setRoomActiveSlideId(roomRes.activeSlideId || "");
-                      setActiveDraft(roomRes.activeSlideId || "");
+                      const picked = roomRes.activeSlideId || "";
+                      setActiveDraft(picked);
+                      setActiveReligionDraft(slides.find((s) => s.id === picked)?.religion || "");
                     } catch (e) {
                       setMsg(e.message || "표시 지정 실패");
                     }
@@ -643,7 +690,7 @@ export default function AdminDashboardSimple() {
                     <div key={s.id} style={{ marginBottom: 12 }}>
                       <div className="muted" style={{ fontSize: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
                         <span>
-                          #{idx + 1} {s.caption ? `(${s.caption})` : ""} {s.id === roomActiveSlideId ? " [현재]" : ""}
+                          #{idx + 1} {s.caption ? `(${s.caption})` : ""} [{religionLabel(s.religion)}] {s.id === roomActiveSlideId ? " [현재]" : ""}
                         </span>
                         <button
                           type="button"

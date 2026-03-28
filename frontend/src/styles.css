@@ -263,15 +263,16 @@ a.code:hover {
   --kiosk-img-pad: clamp(6px, 1.4vmin, 18px);
   --kiosk-caption-pad-y: clamp(10px, 1.8vmin, 18px);
   /* 요청: 텍스트 위 여백 + 이미지 아래 여백(소량) */
-  --kiosk-caption-top-extra: clamp(2px, 0.5vmin, 6px);
+  --kiosk-caption-top-extra: clamp(22px, 3.2vmin, 42px);
   --kiosk-img-bottom-extra: clamp(8px, 1.6vmin, 20px);
+  --kiosk-img-top-extra: clamp(4px, 0.6vmin, 10px);
   /* 글자를 캡션 상단에 더 붙이기 위한 분리 패딩 */
   /* pad-top > pad-bottom 이면 텍스트 중심이 더 아래로 내려옵니다. */
   --kiosk-caption-pad-top: clamp(2px, 0.6vmin, 6px);
   --kiosk-caption-pad-bottom: clamp(10px, 1.8vmin, 18px);
   --kiosk-caption-pad-x: clamp(12px, 2.6vw, 32px);
   --kiosk-caption-phrase-fs: clamp(0.95rem, 1.8vmin, 1.22rem);
-  --kiosk-caption-name-fs: clamp(3.2rem, 6.0vmin, 5.2rem);
+  --kiosk-caption-name-fs: clamp(6.6rem, 12vmin, 10.8rem);
   --kiosk-caption-lh: 1.25;
 }
 
@@ -280,7 +281,7 @@ a.code:hover {
   --kiosk-img-pad: clamp(14px, 2.6vmin, 36px);
   --kiosk-caption-pad-y: clamp(16px, 2.2vmin, 26px);
   /* 요청: 텍스트 위 여백 + 이미지 아래 여백(소량) */
-  --kiosk-caption-top-extra: clamp(3px, 0.8vmin, 9px);
+  --kiosk-caption-top-extra: clamp(24px, 3.4vmin, 46px);
   --kiosk-img-bottom-extra: clamp(12px, 2.0vmin, 28px);
   /* 글자를 캡션 상단에 더 붙이기 위한 분리 패딩 */
   /* pad-top > pad-bottom 이면 텍스트 중심이 더 아래로 내려옵니다. */
@@ -288,11 +289,10 @@ a.code:hover {
   --kiosk-caption-pad-bottom: clamp(14px, 2.2vmin, 26px);
   --kiosk-caption-pad-x: clamp(16px, 3.2vw, 40px);
   --kiosk-caption-phrase-fs: clamp(1.05rem, 2.2vmin, 1.55rem);
-  --kiosk-caption-name-fs: clamp(4.0rem, 8.0vmin, 7.0rem);
+  --kiosk-caption-name-fs: clamp(6rem, 12vmin, 10.5rem);
   --kiosk-caption-lh: 1.32;
-  /* 요청: 32인치 화면 전체는 아래로, 이름은 더 위로 */
-  --kiosk-frame-shift-y: 5cm;
-  --kiosk-name-shift-y: -1.5cm;
+  /* 이미지 상단 여백(27과 동일 변수 사용) — 조금만 위로 */
+  --kiosk-img-top-extra: clamp(2px, 0.4vmin, 8px);
 }
 
 .kiosk--inch24 {
@@ -309,10 +309,6 @@ a.code:hover {
   background: #000;
 }
 
-.kiosk--inch32 .frame {
-  transform: translateY(var(--kiosk-frame-shift-y, 0));
-}
-
 /* 이미지: 화면을 덮어 잘리지 않게 전체가 보이도록(contain), 여백은 검정 레터박스 */
 .kiosk .kiosk-img-wrap {
   flex: 1 1 auto;
@@ -322,6 +318,7 @@ a.code:hover {
   justify-content: center;
   /* 요청: 이미지 패딩(여백) 제거 */
   padding: 0;
+  padding-top: var(--kiosk-img-top-extra, 0px);
   /* 요청: 이미지 아래에 소량 여백 */
   padding-bottom: var(--kiosk-img-bottom-extra, 0px);
   box-sizing: border-box;
@@ -334,7 +331,7 @@ a.code:hover {
   width: auto;
   height: auto;
   object-fit: contain;
-  object-position: center;
+  object-position: right center;
 }
 
 .kiosk .caption {
@@ -343,7 +340,6 @@ a.code:hover {
   /* padding 때문에 위로 뜨는 현상을 줄이기 위해 아래쪽 정렬 */
   display: flex;
   align-items: center;
-  /* 캡션 내부(세로 정렬)는 caption-inner에서 처리, 여기서는 가로 중앙 정렬 */
   justify-content: center;
   /* 요청: 캡션 주변 패딩 완전 제거 */
   padding: 0;
@@ -378,17 +374,44 @@ a.code:hover {
   word-break: keep-all;
   /* 이름(故 ○○)은 궁서체 계열로 표시 */
   font-family: "궁서체", "Gungsuh", "STKaiti", "KaiTi", "PMingLiU", "SimSun", serif;
+  display: inline-flex;
+  /* 이미지(마크)와 글자를 같은 기준선으로 정렬 */
+  align-items: baseline;
+  justify-content: center;
+  gap: clamp(10px, 1.6vmin, 22px);
+  line-height: 1;
 }
 
-.kiosk--inch32 .caption-name {
-  transform: translateY(var(--kiosk-name-shift-y, 0));
+.kiosk .religion-mark {
+  /* 글자 높이(1em)와 동일하게 맞춤 */
+  height: 1em;
+  width: auto;
+  display: inline-block;
+  object-fit: contain;
+  /* 폰트/이미지 기준선 차이를 미세 보정 */
+  transform: translateY(0.14em);
 }
 
-/* 27/32에서는 이미지가 캡션 영역을 침범하지 않게 위쪽으로 더 배치 */
+.kiosk .hanja {
+  display: inline-block;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.kiosk .name-text {
+  line-height: 1;
+}
+
+/* 27/32: 이미지는 우측 정렬 + 살짝 위로 (글자 중앙은 caption에서 처리) */
 .kiosk--inch27 .kiosk-img-wrap,
 .kiosk--inch32 .kiosk-img-wrap {
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: clamp(-14px, -1.4vmin, -6px);
+}
+
+.kiosk--inch32 .kiosk-img-wrap {
   align-items: flex-start;
-  justify-content: center;
   padding-bottom: 0;
 }
 
@@ -400,10 +423,10 @@ a.code:hover {
     --kiosk-caption-pad-top: 4px;
     --kiosk-caption-pad-bottom: 10px;
     --kiosk-caption-pad-x: 16px;
-    --kiosk-caption-top-extra: clamp(2px, 0.6vmin, 7px);
+    --kiosk-caption-top-extra: clamp(18px, 2.6vmin, 34px);
     --kiosk-img-bottom-extra: clamp(10px, 2.0vmin, 24px);
     --kiosk-caption-phrase-fs: clamp(0.95rem, 1.8vmin, 1.25rem);
-    --kiosk-caption-name-fs: clamp(3.4rem, 6.6vmin, 5.2rem);
+    --kiosk-caption-name-fs: clamp(5.1rem, 9.9vmin, 7.8rem);
     --kiosk-caption-lh: 1.24;
   }
 }
@@ -412,7 +435,7 @@ a.code:hover {
 @media (min-height: 1800px) {
   .kiosk--inch32 {
     --kiosk-caption-phrase-fs: clamp(1.35rem, 2.2vmin, 2.0rem);
-    --kiosk-caption-name-fs: clamp(5.0rem, 7.6vmin, 9.0rem);
+    --kiosk-caption-name-fs: clamp(7.5rem, 11.4vmin, 13.5rem);
   }
 }
 
