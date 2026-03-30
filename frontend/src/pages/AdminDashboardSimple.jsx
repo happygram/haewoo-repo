@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   createHall,
   createRoom,
@@ -314,6 +315,11 @@ export default function AdminDashboardSimple() {
     <div className="page page--full">
       <div className="topbar">
         <h1>관리자 대시보드</h1>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <Link className="code" to="/admin/account">
+            계정 관리
+          </Link>
+        </div>
       </div>
       {msg ? <div className="notice">{msg}</div> : null}
 

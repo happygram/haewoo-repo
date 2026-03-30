@@ -22,6 +22,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -61,6 +62,12 @@ type Slide struct {
 	Religion string `gorm:"not null;default:'';type:text" json:"religion"`
 	SortOrder int       `gorm:"index;default:0" json:"sortOrder"`
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"createdAt"`
+}
+
+// 단일 관리자 계정용 간단 설정 저장소 (DB에 저장해서 재시작 후에도 유지)
+type Setting struct {
+	Key   string `gorm:"primaryKey;size:128" json:"key"`
+	Value string `gorm:"not null;type:text" json:"value"`
 }
 
 type configData struct {
@@ -197,6 +204,35 @@ func jsonResponse(w http.ResponseWriter, status int, payload any) {
 	_ = enc.Encode(payload)
 }
 
+func getSetting(db *gorm.DB, key string) (string, bool) {
+	var s Setting
+	if err := db.First(&s, "key = ?", key).Error; err != nil {
+		return "", false
+	}
+	return s.Value, true
+}
+
+func setSetting(db *gorm.DB, key, value string) error {
+	s := Setting{Key: key, Value: value}
+	return db.Save(&s).Error
+}
+
+const adminPasswordHashKey = "admin_password_hash"
+
+func ensureAdminPasswordHash(db *gorm.DB, plainFromEnv string) {
+	if v, ok := getSetting(db, adminPasswordHashKey); ok && strings.TrimSpace(v) != "" {
+		return
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(plainFromEnv), bcrypt.DefaultCost)
+	if err != nil {
+		log.Printf("failed to hash admin password: %v", err)
+		return
+	}
+	if err := setSetting(db, adminPasswordHashKey, string(hash)); err != nil {
+		log.Printf("failed to persist admin password hash: %v", err)
+	}
+}
+
 func deleteS3Object(ctx context.Context, client *s3.Client, bucket, key string) {
 	if client == nil || strings.TrimSpace(bucket) == "" || strings.TrimSpace(key) == "" {
 		return
@@ -303,7 +339,10 @@ func main() {
 	}
 
 	// 운영에서는 마이그레이션 도구로 관리하는 것을 권장합니다.
-	_ = db.AutoMigrate(&Hall{}, &Room{}, &Slide{})
+	_ = db.AutoMigrate(&Hall{}, &Room{}, &Slide{}, &Setting{})
+
+	// ADMIN_PASSWORD는 초기값으로만 사용하고, 이후 변경은 DB에 저장합니다.
+	ensureAdminPasswordHash(db, cfg.AdminPassword)
 
 	r := chi.NewRouter()
 	// 브라우저에서 프론트엔드(다른 도메인/포트) -> API 요청이 막히지 않도록 최소 CORS를 추가합니다.
@@ -344,9 +383,24 @@ func main() {
 				http.Error(w, `{"error":"Invalid JSON"}`, http.StatusBadRequest)
 				return
 			}
-			if body.Username != cfg.AdminUsername || body.Password != cfg.AdminPassword {
+			if body.Username != cfg.AdminUsername {
 				http.Error(w, `{"error":"Invalid credentials"}`, http.StatusUnauthorized)
 				return
+			}
+
+			// DB에 저장된 해시가 있으면 그걸로 검증 (재시작에도 유지)
+			if hash, ok := getSetting(db, adminPasswordHashKey); ok && strings.TrimSpace(hash) != "" {
+				if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(body.Password)); err != nil {
+					http.Error(w, `{"error":"Invalid credentials"}`, http.StatusUnauthorized)
+					return
+				}
+			} else {
+				// 마이그레이션 이전/초기 상태: ENV 평문으로 검증 후 해시 저장
+				if body.Password != cfg.AdminPassword {
+					http.Error(w, `{"error":"Invalid credentials"}`, http.StatusUnauthorized)
+					return
+				}
+				ensureAdminPasswordHash(db, cfg.AdminPassword)
 			}
 			token, err := signAdminJwt(cfg.AdminUsername, cfg.JWTSecret)
 			if err != nil {
@@ -358,6 +412,58 @@ func main() {
 
 		secured := api.Group(func(ar chi.Router) {
 			ar.Use(authAdminMiddleware(cfg.JWTSecret))
+		})
+
+		// =========================
+		// Admin password change
+		// =========================
+		secured.Post("/admin/change-password", func(w http.ResponseWriter, r *http.Request) {
+			var body struct {
+				CurrentPassword string `json:"currentPassword"`
+				NewPassword     string `json:"newPassword"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, `{"error":"Invalid JSON"}`, http.StatusBadRequest)
+				return
+			}
+			cur := strings.TrimSpace(body.CurrentPassword)
+			next := strings.TrimSpace(body.NewPassword)
+			if cur == "" || next == "" {
+				http.Error(w, `{"error":"currentPassword and newPassword are required"}`, http.StatusBadRequest)
+				return
+			}
+			if len(next) < 8 {
+				http.Error(w, `{"error":"newPassword must be at least 8 characters"}`, http.StatusBadRequest)
+				return
+			}
+			if cur == next {
+				http.Error(w, `{"error":"newPassword must be different"}`, http.StatusBadRequest)
+				return
+			}
+
+			if hash, ok := getSetting(db, adminPasswordHashKey); ok && strings.TrimSpace(hash) != "" {
+				if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(cur)); err != nil {
+					http.Error(w, `{"error":"Invalid current password"}`, http.StatusUnauthorized)
+					return
+				}
+			} else {
+				// 초기 상태 (해시가 아직 없다면 ENV 평문과 비교)
+				if cur != cfg.AdminPassword {
+					http.Error(w, `{"error":"Invalid current password"}`, http.StatusUnauthorized)
+					return
+				}
+			}
+
+			newHash, err := bcrypt.GenerateFromPassword([]byte(next), bcrypt.DefaultCost)
+			if err != nil {
+				http.Error(w, `{"error":"hash error"}`, http.StatusInternalServerError)
+				return
+			}
+			if err := setSetting(db, adminPasswordHashKey, string(newHash)); err != nil {
+				http.Error(w, `{"error":"db error"}`, http.StatusInternalServerError)
+				return
+			}
+			jsonResponse(w, http.StatusOK, map[string]any{"ok": true})
 		})
 
 		// =========================

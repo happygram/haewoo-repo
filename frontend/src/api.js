@@ -38,6 +38,14 @@ export async function loginAdmin({ username, password }) {
   });
 }
 
+export async function changeAdminPassword(token, { currentPassword, newPassword }) {
+  return requestJson("/api/admin/change-password", {
+    method: "POST",
+    headers: headersWithToken(token),
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+}
+
 export async function getHalls(token) {
   return requestJson("/api/halls", { method: "GET", headers: headersWithToken(token) });
 }

@@ -2,6 +2,7 @@ import React from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import AdminLogin from "./pages/AdminLogin.jsx";
 import AdminDashboardSimple from "./pages/AdminDashboardSimple.jsx";
+import AdminAccount from "./pages/AdminAccount.jsx";
 import KioskView from "./pages/KioskView.jsx";
 
 function RequireAuth({ children }) {
@@ -21,6 +22,14 @@ export default function App() {
         element={
           <RequireAuth>
             <AdminDashboardSimple />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/admin/account"
+        element={
+          <RequireAuth>
+            <AdminAccount />
           </RequireAuth>
         }
       />
