@@ -406,19 +406,23 @@ a.code:hover {
   align-items: center;
   justify-content: flex-end;
   box-sizing: border-box;
+  /* 위 영정과 이미지 경계 맞닿게(틈 최소) */
   padding: 0 0 clamp(4px, 0.8vmin, 10px);
   background: linear-gradient(to bottom, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.92));
 }
 
+/* 영정 + rest-01: 사진은 가능한 크게 유지하고, 아래 strip과 세로로 붙임(가운데 뜬 빈 공간 제거) */
 .kiosk .kiosk-img-wrap:has(+ .kiosk-rest-strip) {
   padding-bottom: 0;
+  justify-content: flex-end;
+  align-items: flex-end;
 }
 
+/* 가로는 JS로 영정과 맞춤 — img에 max-height를 두면 width(px)와 충돌해 아래만 좁아짐 */
 .kiosk .kiosk-rest-img {
   display: block;
   width: auto;
   max-width: 100%;
-  max-height: min(52vh, 720px);
   height: auto;
   object-fit: contain;
   object-position: right center;
@@ -449,6 +453,13 @@ a.code:hover {
 
 .kiosk--inch32 .kiosk-rest-strip {
   align-items: flex-start;
+}
+
+/* inch27/32 기본 img-wrap 규칙이 뒤에서 align을 덮어쓰므로, rest strip 모드만 아래·우측으로 붙임 */
+.kiosk--inch27 .kiosk-img-wrap:has(+ .kiosk-rest-strip),
+.kiosk--inch32 .kiosk-img-wrap:has(+ .kiosk-rest-strip) {
+  align-items: flex-end;
+  justify-content: flex-end;
 }
 
 /* 세로 해상도가 낮은 패널(예: 1366x768, 1280x720)에서는 캡션 영역을 줄여 이미지 확보 */
