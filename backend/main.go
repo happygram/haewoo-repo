@@ -1028,13 +1028,25 @@ func main() {
 			http.Error(w, `{"error":"room not found"}`, http.StatusNotFound)
 			return
 		}
-		if !room.IsActive {
+		var hallKiosk Hall
+		if err := db.First(&hallKiosk, "id = ?", room.HallID).Error; err != nil {
 			http.Error(w, `{"error":"room not found"}`, http.StatusNotFound)
 			return
 		}
-		var hallKiosk Hall
-		if err := db.First(&hallKiosk, "id = ?", room.HallID).Error; err != nil || !hallKiosk.IsActive {
-			http.Error(w, `{"error":"room not found"}`, http.StatusNotFound)
+
+		// 빈소/장례식장 비활성화는 키오스크에서 "비활성화 안내 이미지"로 표시합니다.
+		if !room.IsActive || !hallKiosk.IsActive {
+			jsonResponse(w, http.StatusOK, map[string]any{
+				"ui": map[string]any{
+					"showCaption": false,
+					"displaySize": room.DisplaySize,
+				},
+				"room": map[string]any{
+					"id":       room.ID,
+					"isActive": false,
+				},
+				"activeSlide": nil,
+			})
 			return
 		}
 
@@ -1054,6 +1066,10 @@ func main() {
 			"ui": map[string]any{
 				"showCaption": showCaption,
 				"displaySize": room.DisplaySize,
+			},
+			"room": map[string]any{
+				"id":       room.ID,
+				"isActive": true,
 			},
 			"activeSlide": map[string]any{
 				"id":       active.ID,

@@ -11,6 +11,7 @@ export default function KioskView() {
   const [showCaption, setShowCaption] = useState(false);
   const [displaySize, setDisplaySize] = useState("INCH24");
   const [activeSlide, setActiveSlide] = useState(null);
+  const [roomInactive, setRoomInactive] = useState(false);
 
   const showHanjaCaption =
     Boolean(showCaption && displaySize !== "INCH24" && activeSlide?.caption && !activeSlide?.religion);
@@ -44,10 +45,12 @@ export default function KioskView() {
       setLoading(true);
       try {
         const res = await getKioskRoomConfig({ roomId });
+        const inactive = res?.room?.isActive === false;
+        setRoomInactive(inactive);
         setShowCaption(Boolean(res.ui?.showCaption));
         const ds = res.ui?.displaySize;
         setDisplaySize(ds === "INCH32" ? "INCH32" : ds === "INCH24" ? "INCH24" : "INCH27");
-        setActiveSlide(res.activeSlide || null);
+        setActiveSlide(inactive ? null : (res.activeSlide || null));
         setLoading(false);
         return;
       } catch (e) {
@@ -79,7 +82,13 @@ export default function KioskView() {
     <div className={kioskClass}>
       {error ? <div className="kiosk-error">{error}</div> : null}
 
-      {activeSlide?.imageUrl ? (
+      {roomInactive ? (
+        <div className="frame">
+          <div className="kiosk-img-wrap">
+            <img className="bg" src="/room-deactive.jpg" alt="" />
+          </div>
+        </div>
+      ) : activeSlide?.imageUrl ? (
         <div className="frame">
           {showRestStrip ? (
             <>
